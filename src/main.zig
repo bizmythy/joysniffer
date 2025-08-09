@@ -4,30 +4,48 @@ const c = @cImport({
     @cInclude("linux/joystick.h"); // <-- joydev, defines struct js_event
 });
 
-pub fn main() !void {
-    // var gpa = std.heap.page_allocator;
-    const device_path = "/dev/input/js0";
+const fs = std.fs;
 
-    var f = std.fs.openFileAbsolute(device_path, .{ .mode = std.fs.File.OpenMode.read_only }) catch |err| {
-        switch (err) {
-            std.fs.File.OpenError.FileNotFound => {
-                std.debug.print("Device not found: {s}\n", .{device_path});
-                return err;
-            },
-            else => |leftover_err| return leftover_err,
-        }
-    };
-    defer f.close();
-
-    var ev: c.struct_js_event = undefined;
-
-    while (true) {
-        const n = try f.read(std.mem.asBytes(&ev));
-        if (n != @sizeOf(c.struct_js_event)) break;
-
-        // js_event layout: time(ms), value(i16), type(u8), number(u8)
-        std.debug.print("t={}ms type={d} num={d} val={d}\n", .{ ev.time, ev.type, ev.number, ev.value });
+fn closeFiles(file_list: std.ArrayList(fs.File)) void {
+    for (file_list.items) |file| {
+        file.close();
     }
+}
+
+pub fn main() !void {
+    const allocator = std.heap.page_allocator;
+    const device_dir = "/dev/input";
+
+    // Open the current working directory as an iterable directory.
+    var dir = try fs.openDirAbsolute(device_dir, fs.Dir.OpenOptions{ .iterate = true });
+    defer dir.close();
+
+    var js_file_list = std.ArrayList(fs.File).init(allocator);
+    defer js_file_list.deinit();
+
+    var iter = dir.iterateAssumeFirstIteration();
+    while (try iter.next()) |entry| {
+        if (std.mem.eql(u8, entry.name[0..2], "js")) {
+            std.debug.print("Joy device found: {s}\n", .{entry.name});
+            const path = try fs.path.join(allocator, &[2][]const u8{ device_dir, entry.name });
+            const f = try fs.openFileAbsolute(path, .{ .mode = fs.File.OpenMode.read_only });
+            try js_file_list.append(f);
+        }
+    }
+    defer closeFiles(js_file_list);
+
+    // var f = try fs.openFileAbsolute(device_dir, .{ .mode = fs.File.OpenMode.read_only });
+    // defer f.close();
+
+    // var ev: c.struct_js_event = undefined;
+
+    // while (true) {
+    //     const n = try f.read(std.mem.asBytes(&ev));
+    //     if (n != @sizeOf(c.struct_js_event)) break;
+
+    //     // js_event layout: time(ms), value(i16), type(u8), number(u8)
+    //     std.debug.print("t={}ms type={d} num={d} val={d}\n", .{ ev.time, ev.type, ev.number, ev.value });
+    // }
 }
 
 test "simple test" {
