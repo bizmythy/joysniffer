@@ -1,2 +1,5 @@
 # direnv
 .direnv
+
+.zig-cache
+zig-out
