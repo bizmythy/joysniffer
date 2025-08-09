@@ -8,7 +8,15 @@ pub fn main() !void {
     // var gpa = std.heap.page_allocator;
     const device_path = "/dev/input/js0";
 
-    var f = try std.fs.openFileAbsolute(device_path, .{ .mode = std.fs.File.OpenMode.read_only });
+    var f = std.fs.openFileAbsolute(device_path, .{ .mode = std.fs.File.OpenMode.read_only }) catch |err| {
+        switch (err) {
+            std.fs.File.OpenError.FileNotFound => {
+                std.debug.print("Device not found: {s}\n", .{device_path});
+                return err;
+            },
+            else => |leftover_err| return leftover_err,
+        }
+    };
     defer f.close();
 
     var ev: c.struct_js_event = undefined;
