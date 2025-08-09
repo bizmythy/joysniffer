@@ -6,34 +6,57 @@ const c = @cImport({
 
 const fs = std.fs;
 
-fn closeFiles(file_list: std.ArrayList(fs.File)) void {
-    for (file_list.items) |file| {
-        file.close();
+const Joysticks = struct {
+    const Joystick = struct {
+        file: fs.File,
+        name: []const u8,
+    };
+
+    files: std.ArrayList(Joystick),
+
+    pub fn init(allocator: std.mem.Allocator) !Joysticks {
+        var dir = try fs.openDirAbsolute("/dev/input", fs.Dir.OpenOptions{ .iterate = true });
+        defer dir.close();
+
+        var joysticks = std.ArrayList(Joystick).init(allocator);
+
+        var iter = dir.iterateAssumeFirstIteration();
+        while (try iter.next()) |entry| {
+            if (std.mem.eql(u8, entry.name[0..2], "js")) {
+                const file = try dir.openFile(entry.name, .{ .mode = fs.File.OpenMode.read_only });
+                try joysticks.append(Joystick{
+                    .file = file,
+                    .name = entry.name,
+                });
+            }
+        }
+
+        return Joysticks{
+            .files = joysticks,
+        };
     }
-}
+
+    pub fn deinit(self: *Joysticks) void {
+        // close all files
+        for (self.files.items) |joystick| {
+            joystick.file.close();
+        }
+        // free list
+        self.files.deinit();
+    }
+
+    pub fn print(self: *Joysticks) void {
+        for (self.files.items) |file| {
+            std.debug.print("Joy device found: {s}\n", .{file});
+        }
+    }
+};
 
 pub fn main() !void {
     const allocator = std.heap.page_allocator;
-    const device_dir = "/dev/input";
 
-    // Open the current working directory as an iterable directory.
-    var dir = try fs.openDirAbsolute(device_dir, fs.Dir.OpenOptions{ .iterate = true });
-    defer dir.close();
-
-    var js_file_list = std.ArrayList(fs.File).init(allocator);
-    defer js_file_list.deinit();
-
-    var iter = dir.iterateAssumeFirstIteration();
-    while (try iter.next()) |entry| {
-        if (std.mem.eql(u8, entry.name[0..2], "js")) {
-            std.debug.print("Joy device found: {s}\n", .{entry.name});
-            const path = try fs.path.join(allocator, &[2][]const u8{ device_dir, entry.name });
-            const f = try fs.openFileAbsolute(path, .{ .mode = fs.File.OpenMode.read_only });
-            try js_file_list.append(f);
-        }
-    }
-    defer closeFiles(js_file_list);
-
+    var joysticks = try Joysticks.init(allocator);
+    defer joysticks.deinit();
     // var f = try fs.openFileAbsolute(device_dir, .{ .mode = fs.File.OpenMode.read_only });
     // defer f.close();
 
