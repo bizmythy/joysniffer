@@ -28,6 +28,9 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // Link system C library to access Linux headers
+    lib_mod.linkSystemLibrary("c", .{});
+
     // We will also create a module for our other entry point, 'main.zig'.
     const exe_mod = b.createModule(.{
         // `root_source_file` is the Zig "entry point" of the module. If a module
@@ -38,6 +41,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    // Link system C library to access Linux headers
+    exe_mod.linkSystemLibrary("c", .{});
 
     // Modules can depend on one another using the `std.Build.Module.addImport` function.
     // This is what allows Zig source code to use `@import("foo")` where 'foo' is not a

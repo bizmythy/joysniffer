@@ -1,21 +1,25 @@
-//! By convention, main.zig is where your main function lives in the case that
-//! you are building an executable. If you are making a library, the convention
-//! is to delete this file and start with root.zig instead.
+const std = @import("std");
+const lib = @import("joysniffer_lib");
+const c = @cImport({
+    @cInclude("linux/joystick.h"); // <-- joydev, defines struct js_event
+});
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    // var gpa = std.heap.page_allocator;
+    const device_path = "/dev/input/js0";
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var f = try std.fs.openFileAbsolute(device_path, .{ .mode = std.fs.File.OpenMode.read_only });
+    defer f.close();
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    var ev: c.struct_js_event = undefined;
 
-    try bw.flush(); // Don't forget to flush!
+    while (true) {
+        const n = try f.read(std.mem.asBytes(&ev));
+        if (n != @sizeOf(c.struct_js_event)) break;
+
+        // js_event layout: time(ms), value(i16), type(u8), number(u8)
+        std.debug.print("t={}ms type={d} num={d} val={d}\n", .{ ev.time, ev.type, ev.number, ev.value });
+    }
 }
 
 test "simple test" {
@@ -39,8 +43,3 @@ test "fuzz example" {
     };
     try std.testing.fuzz(Context{}, Context.testOne, .{});
 }
-
-const std = @import("std");
-
-/// This imports the separate module containing `root.zig`. Take a look in `build.zig` for details.
-const lib = @import("joysniffer_lib");

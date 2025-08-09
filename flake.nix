@@ -24,6 +24,7 @@
           buildInputs = with pkgs; [
             (aspellWithDicts (ps: with ps; [ en ]))
             # keep-sorted start
+            linuxHeaders
             nushell
             zig
             # keep-sorted end
